@@ -1,16 +1,13 @@
 const fs = require("fs");
 
-// URL of the whisper.cpp server container (see docker-compose.whisper.yml)
 const WHISPER_URL =
-    process.env.WHISPER_URL || "http://localhost:9000";
+    process.env.WHISPER_URL;
 
 async function transcribe(filePath) {
     const audioBuffer = fs.readFileSync(filePath);
 
     const form = new FormData();
 
-    // --convert on the server handles webm/opus/mp4 via its bundled ffmpeg,
-    // so we can send the raw recording as-is.
     form.append(
         "file",
         new Blob([audioBuffer]),

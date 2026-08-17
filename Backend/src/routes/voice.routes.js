@@ -14,7 +14,6 @@ const upload = multer({
     },
 });
 
-// Field name must be "audio" to match transcribeAudio() in lib/api.ts
 router.post(
     "/transcribe",
     upload.single("audio"),

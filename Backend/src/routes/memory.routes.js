@@ -18,32 +18,32 @@ const {
 router.post("/", async (req, res) => {
     try {
         const {
-        content,
-        type = "general",
-        importance = 0.5,
-        conversationId = null,
+            content,
+            type = "general",
+            importance = 0.5,
+            conversationId = null,
         } = req.body;
 
         if (!content) {
-        return res.status(400).json({
-            message: "Content is required",
-        });
+            return res.status(400).json({
+                message: "Content is required",
+            });
         }
 
         const memory =
-        await createMemory({
-            content,
-            type,
-            importance,
-            conversationId,
-        });
+            await createMemory({
+                content,
+                type,
+                importance,
+                conversationId,
+            });
 
         res.status(201).json(memory);
     } catch (error) {
         console.error(error);
 
         res.status(500).json({
-        message: "Failed to create memory",
+            message: "Failed to create memory",
         });
     }
 });
@@ -101,7 +101,7 @@ router.patch("/:id", async (req, res) => {
             importance !== undefined &&
             (
                 typeof importance !==
-                    "number" ||
+                "number" ||
                 importance < 0 ||
                 importance > 1
             )
@@ -171,28 +171,28 @@ router.delete("/:id", async (req, res) => {
 router.get("/search", async (req, res) => {
     try {
         const {
-        q,
-        limit = 5,
+            q,
+            limit = 5,
         } = req.query;
 
         if (!q) {
-        return res.status(400).json({
-            message: "Query is required",
-        });
+            return res.status(400).json({
+                message: "Query is required",
+            });
         }
 
         const memories =
-        await searchMemories(
-            q,
-            Number(limit)
-        );
+            await searchMemories(
+                q,
+                Number(limit)
+            );
 
         res.json(memories);
     } catch (error) {
         console.error(error);
 
         res.status(500).json({
-        message: "Failed to search memories",
+            message: "Failed to search memories",
         });
     }
 });

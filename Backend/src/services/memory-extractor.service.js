@@ -63,50 +63,50 @@ function normalizeMemory(result) {
 
 async function extractMemory(message) {
     const prompt = `
-Analyze this user message.
+        Analyze this user message.
 
-Determine whether it contains information
-worth remembering about the user for future
-conversations.
+        Determine whether it contains information
+        worth remembering about the user for future
+        conversations.
 
-Remember things such as:
-- Name or nickname
-- Likes and dislikes
-- Personal preferences
-- Hobbies
-- Long-term goals
-- Important personal facts
-- Frequently relevant interests
+        Remember things such as:
+        - Name or nickname
+        - Likes and dislikes
+        - Personal preferences
+        - Hobbies
+        - Long-term goals
+        - Important personal facts
+        - Frequently relevant interests
 
-Do NOT remember:
-- Greetings
-- Questions
-- Jokes
-- Casual conversation
-- Temporary statements
-- Information unrelated to the user
+        Do NOT remember:
+        - Greetings
+        - Questions
+        - Jokes
+        - Casual conversation
+        - Temporary statements
+        - Information unrelated to the user
 
-Return ONLY valid JSON.
+        Return ONLY valid JSON.
 
-If it should be remembered:
-{
-  "shouldRemember": true,
-  "memory": "short factual statement",
-  "type": "preference",
-  "importance": 0.8
-}
+        If it should be remembered:
+        {
+        "shouldRemember": true,
+        "memory": "short factual statement",
+        "type": "preference",
+        "importance": 0.8
+        }
 
-If it should NOT be remembered:
-{
-  "shouldRemember": false,
-  "memory": "",
-  "type": "",
-  "importance": 0
-}
+        If it should NOT be remembered:
+        {
+        "shouldRemember": false,
+        "memory": "",
+        "type": "",
+        "importance": 0
+        }
 
-User message:
-${message}
-`.trim();
+        User message:
+        ${message}
+    `.trim();
 
     const stream =
         await generateResponse([

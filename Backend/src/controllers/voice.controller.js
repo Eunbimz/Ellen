@@ -11,20 +11,11 @@ async function transcribeVoice(req, res) {
     let tempFilePath = null;
 
     try {
-        // ==========================================
-        // 1. Validate upload
-        // ==========================================
-
         if (!req.file || !req.file.buffer?.length) {
             return res.status(400).json({
                 message: "Audio file is required",
             });
         }
-
-        // ==========================================
-        // 2. Write the blob to a temp file
-        //    (whisper.cpp needs a file path, not a buffer)
-        // ==========================================
 
         const extension =
             req.file.mimetype?.includes("mp4")
@@ -41,10 +32,6 @@ async function transcribeVoice(req, res) {
             req.file.buffer
         );
 
-        // ==========================================
-        // 3. Transcribe
-        // ==========================================
-
         const text = await transcribe(tempFilePath);
 
         res.json({ text });
@@ -58,9 +45,6 @@ async function transcribeVoice(req, res) {
             message: "Failed to transcribe audio",
         });
     } finally {
-        // ==========================================
-        // 4. Always clean up the temp file
-        // ==========================================
 
         if (tempFilePath) {
             fs.unlink(tempFilePath, (err) => {

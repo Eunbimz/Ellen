@@ -7,45 +7,45 @@ const {
 
 async function detectMemoryCommand(message) {
     const prompt = `
-Determine whether the user is asking to manage
-their stored memories.
+        Determine whether the user is asking to manage
+        their stored memories.
 
-Possible intents:
+        Possible intents:
 
-- list_memories
-  User asks what you remember about them.
+        - list_memories
+        User asks what you remember about them.
 
-- forget_memory
-  User asks you to forget/remove something
-  from their memories.
+        - forget_memory
+        User asks you to forget/remove something
+        from their memories.
 
-- none
-  Normal conversation.
+        - none
+        Normal conversation.
 
-Return ONLY valid JSON.
+        Return ONLY valid JSON.
 
-Format:
+        Format:
 
-{
-  "intent": "list_memories"
-}
+        {
+        "intent": "list_memories"
+        }
 
-or
+        or
 
-{
-  "intent": "forget_memory",
-  "query": "what should be forgotten"
-}
+        {
+        "intent": "forget_memory",
+        "query": "what should be forgotten"
+        }
 
-or
+        or
 
-{
-  "intent": "none"
-}
+        {
+        "intent": "none"
+        }
 
-User message:
-${message}
-`.trim();
+        User message:
+        ${message}
+    `.trim();
 
     const stream =
         await generateResponse([
@@ -87,9 +87,9 @@ ${message}
 
         if (
             parsed.intent ===
-                "forget_memory" &&
+            "forget_memory" &&
             typeof parsed.query ===
-                "string"
+            "string"
         ) {
             return {
                 intent: "forget_memory",
@@ -132,7 +132,7 @@ async function handleMemoryCommand(
 
     if (
         command.intent ===
-            "forget_memory" &&
+        "forget_memory" &&
         command.query
     ) {
         const memory =

@@ -1,11 +1,3 @@
--- Auto-run once, on first container start, by the official postgres image
--- (anything in /docker-entrypoint-initdb.d/ runs only against an EMPTY data dir).
---
--- This schema is reconstructed from the columns your services actually
--- query (conversation.service.js, memory.service.js). Check it against
--- your real schema/migrations if you have one — this is a best-effort
--- scaffold, not a guaranteed match.
-
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS conversations (
@@ -23,7 +15,6 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- nomic-embed-text (your OLLAMA_EMBED_MODEL) produces 768-dim vectors.
 CREATE TABLE IF NOT EXISTS memories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     content TEXT NOT NULL,

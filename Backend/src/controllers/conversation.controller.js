@@ -8,14 +8,14 @@ const {
 async function create(req, res) {
     try {
         const conversation =
-        await createConversation();
+            await createConversation();
 
         res.status(201).json(conversation);
     } catch (error) {
         console.error(error);
 
         res.status(500).json({
-        message: "Failed to create conversation",
+            message: "Failed to create conversation",
         });
     }
 }
@@ -23,14 +23,14 @@ async function create(req, res) {
 async function list(req, res) {
     try {
         const conversations =
-        await getConversations();
+            await getConversations();
 
         res.json(conversations);
     } catch (error) {
         console.error(error);
 
         res.status(500).json({
-        message: "Failed to get conversations",
+            message: "Failed to get conversations",
         });
     }
 }
@@ -40,26 +40,26 @@ async function getById(req, res) {
         const { id } = req.params;
 
         const conversation =
-        await getConversation(id);
+            await getConversation(id);
 
         if (!conversation) {
-        return res.status(404).json({
-            message: "Conversation not found",
-        });
+            return res.status(404).json({
+                message: "Conversation not found",
+            });
         }
 
         const messages =
-        await getMessages(id);
+            await getMessages(id);
 
         res.json({
-        conversation,
-        messages,
+            conversation,
+            messages,
         });
     } catch (error) {
         console.error(error);
 
         res.status(500).json({
-        message: "Failed to get conversation",
+            message: "Failed to get conversation",
         });
     }
 }

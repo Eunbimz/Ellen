@@ -1,13 +1,11 @@
 # Run from the "Project Ellen" root: docker compose up -d --build
 #
-# Ollama stays on Windows (not containerized) — backend reaches it via
+# Ollama stays on Windows (not containerized), backend reaches it via
 # host.docker.internal. Everything else runs in this compose network.
 
 services:
 
-  # ==========================================
   # Postgres + pgvector
-  # ==========================================
   postgres:
     image: pgvector/pgvector:pg16
     container_name: ellen-postgres
@@ -20,7 +18,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # Runs once, only against a fresh/empty data volume
       - ./Backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ellen -d ellen"]
@@ -28,9 +25,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # ==========================================
   # Local speech-to-text (whisper.cpp)
-  # ==========================================
   whisper:
     image: ghcr.io/ggml-org/whisper.cpp:main
     container_name: ellen-whisper
@@ -39,17 +34,12 @@ services:
       - "9000:8080"
     volumes:
       - whisper-models:/models
-    # Passed as ONE argument (not a bare string) so it becomes a single
-    # arg to this image's own entrypoint (bash -c) instead of getting
-    # wrapped in a second, conflicting "sh -c".
     command:
       - >
         ./models/download-ggml-model.sh base /models &&
         whisper-server -m /models/ggml-base.bin --host 0.0.0.0 --port 8080 --convert --language auto
 
-  # ==========================================
   # Backend (Express API)
-  # ==========================================
   backend:
     build:
       context: ./Backend
@@ -70,14 +60,10 @@ services:
       DB_PASSWORD: ellen
       DB_NAME: ellen
 
-      # Ollama is on the Windows host, not in this compose network
       OLLAMA_HOST: http://host.docker.internal:11434
       OLLAMA_MODEL: qwen3.5:0.8b
       OLLAMA_EMBED_MODEL: nomic-embed-text
 
-      # Internal container-to-container URL (note: port 8080, not the
-      # 9000 host mapping above — that mapping is only for your own
-      # curl/debugging from Windows)
       WHISPER_URL: http://whisper:8080
     ports:
       - "5000:5000"
@@ -87,9 +73,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  # ==========================================
   # Frontend (Next.js)
-  # ==========================================
   frontend:
     build:
       context: ./frontend
@@ -99,8 +83,6 @@ services:
     depends_on:
       - backend
     environment:
-      # This is fetched from the BROWSER on your Windows machine, so it
-      # must be the host-mapped port, not the internal service name.
       NEXT_PUBLIC_API_URL: http://localhost:5000
     ports:
       - "3000:3000"

@@ -4,39 +4,39 @@ const {
 
 async function extractState(message) {
     const prompt = `
-Analyze the user's emotional tone.
+        Analyze the user's emotional tone.
 
-Return ONLY valid JSON.
+        Return ONLY valid JSON.
 
-Format:
+        Format:
 
-{
-  "mood": "neutral",
-  "energy": 0.5,
-  "engagement": 0.5
-}
+        {
+        "mood": "neutral",
+        "energy": 0.5,
+        "engagement": 0.5
+        }
 
-Allowed mood:
-neutral
-happy
-sad
-angry
-excited
-curious
-frustrated
-playful
+        Allowed mood:
+        neutral
+        happy
+        sad
+        angry
+        excited
+        curious
+        frustrated
+        playful
 
-energy:
-0 = very low
-1 = very high
+        energy:
+        0 = very low
+        1 = very high
 
-engagement:
-0 = disengaged
-1 = highly engaged
+        engagement:
+        0 = disengaged
+        1 = highly engaged
 
-User message:
-${message}
-`.trim();
+        User message:
+        ${message}
+    `.trim();
 
     const stream =
         await generateResponse([

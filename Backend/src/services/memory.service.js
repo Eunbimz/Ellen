@@ -142,11 +142,11 @@ async function createMemory({
         updated_at
         `,
         [
-        content,
-        vector,
-        type,
-        importance,
-        conversationId,
+            content,
+            vector,
+            type,
+            importance,
+            conversationId,
         ]
     );
 
@@ -157,7 +157,7 @@ async function createMemory({
 async function searchMemories(
     query,
     limit = 5
-    ) {
+) {
     const embedding =
         await generateEmbedding(query);
 
