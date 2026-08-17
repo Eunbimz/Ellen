@@ -360,15 +360,8 @@ Keep it concise and conversational.
         
         // ==========================================
         // 10. Save user message
-        // ==========================================
-        
-        await saveMessage(
-            currentConversationId,
-            "user",
-            message
-        );
-        
-        
+        // =========================================
+
         // ==========================================
         // 11. Save extracted memory
         // ==========================================
@@ -441,88 +434,100 @@ Keep it concise and conversational.
     }
 }
         
-        const context =
-            await buildContext({
-                conversationId:
-                    currentConversationId,
+       // ==========================================
+// Build context
+// ==========================================
 
-                message,
-            });
-        
-        // ==========================================
-        // Build conversation context
-        // ==========================================
-
-
-
-        // ==========================================
-        // 12. Build LLM messages
-        // ==========================================
-
-        const messages = context.messages;
-
-
-        // ==========================================
-        // 13. Generate response
-        // ==========================================
-
-        const stream =
-            await generateResponse(
-                messages,
-                {
-                    think: false,
-                    num_predict: 256,
-                }
-            );
-
-
-        res.setHeader(
-            "Content-Type",
-            "text/plain; charset=utf-8"
-        );
-
-        res.setHeader(
-            "Cache-Control",
-            "no-cache"
-        );
-
-        res.setHeader(
-            "Connection",
-            "keep-alive"
-        );
-
-
-        let fullResponse = "";
-
-
-        for await (
-            const chunk of stream
-        ) {
-            const content =
-                chunk.message?.content ||
-                "";
-
-
-            if (content) {
-                fullResponse += content;
-
-                res.write(content);
-            }
-        }
-
-
-        // ==========================================
-        // 14. Save assistant response
-        // ==========================================
-
-        await saveMessage(
+const context =
+    await buildContext({
+        conversationId:
             currentConversationId,
-            "assistant",
-            fullResponse
-        );
+
+        message,
+
+        state,
+    });
 
 
-        res.end();
+// ==========================================
+// Save user message
+// ==========================================
+
+await saveMessage(
+    currentConversationId,
+    "user",
+    message
+);
+
+
+// ==========================================
+// Build LLM messages
+// ==========================================
+
+const messages =
+    context.messages;
+
+
+// ==========================================
+// Generate response
+// ==========================================
+
+const stream =
+    await generateResponse(
+        messages,
+        {
+            think: false,
+            num_predict: 256,
+        }
+    );
+
+
+res.setHeader(
+    "Content-Type",
+    "text/plain; charset=utf-8"
+);
+
+res.setHeader(
+    "Cache-Control",
+    "no-cache"
+);
+
+res.setHeader(
+    "Connection",
+    "keep-alive"
+);
+
+
+let fullResponse = "";
+
+
+for await (
+    const chunk of stream
+) {
+    const content =
+        chunk.message?.content ||
+        "";
+
+    if (content) {
+        fullResponse += content;
+
+        res.write(content);
+    }
+}
+
+
+// ==========================================
+// Save assistant response
+// ==========================================
+
+await saveMessage(
+    currentConversationId,
+    "assistant",
+    fullResponse
+);
+
+
+res.end();
 
     } catch (error) {
         console.error(

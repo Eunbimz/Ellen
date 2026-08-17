@@ -118,3 +118,36 @@ export async function getConversation(
 
   return response.json();
 }
+
+export async function transcribeAudio(
+  audioBlob: Blob
+): Promise<string> {
+  const formData = new FormData();
+
+  formData.append(
+    "audio",
+    audioBlob,
+    "voice.webm"
+  );
+
+  const response = await fetch(
+    `${API_URL}/api/voice/transcribe`,
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    const errorText =
+      await response.text();
+
+    throw new Error(
+      `Voice transcription failed: ${errorText}`
+    );
+  }
+
+  const data = await response.json();
+
+  return data.text ?? "";
+}

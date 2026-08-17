@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 
 import ConversationSidebar from "@/components/sidebar/conversation-sidebar";
 
@@ -12,7 +8,13 @@ import {
   sendMessage,
   getConversations,
   getConversation,
+  transcribeAudio,
 } from "@/lib/api";
+
+import {
+  speak,
+  stopSpeaking,
+} from "@/lib/speech";
 
 type Message = {
   role: "user" | "assistant";
@@ -27,29 +29,41 @@ type Conversation = {
 };
 
 export default function ChatWindow() {
-  const [messages, setMessages] =
-    useState<Message[]>([]);
+  // ==========================================
+  // State
+  // ==========================================
 
-  const [input, setInput] =
-    useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
 
-    
+  const [input, setInput] = useState("");
 
-  const [loading, setLoading] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const [
-    conversationId,
-    setConversationId,
-  ] = useState<string | null>(null);
+  const [conversationId, setConversationId] =
+    useState<string | null>(null);
 
-  const [
-    conversations,
-    setConversations,
-  ] = useState<Conversation[]>([]);
+  const [conversations, setConversations] =
+    useState<Conversation[]>([]);
 
   const [sidebarOpen, setSidebarOpen] =
-  useState(false);
+    useState(false);
+
+  // Voice output
+  const [voiceEnabled, setVoiceEnabled] =
+    useState(false);
+
+  const [isListening, setIsListening] =
+    useState(false);
+
+  const mediaRecorderRef =
+    useRef<MediaRecorder | null>(null);
+
+  const audioChunksRef =
+    useRef<Blob[]>([]);
+
+  // ==========================================
+  // Refs
+  // ==========================================
 
   const messagesEndRef =
     useRef<HTMLDivElement | null>(null);
@@ -62,18 +76,20 @@ export default function ChatWindow() {
   // ==========================================
 
   useEffect(() => {
-    async function load() {
+    async function loadConversations() {
       try {
-        const data =
-          await getConversations();
+        const data = await getConversations();
 
         setConversations(data);
       } catch (error) {
-        console.error(error);
+        console.error(
+          "Failed to load conversations:",
+          error
+        );
       }
     }
 
-    load();
+    loadConversations();
   }, []);
 
   // ==========================================
@@ -87,12 +103,139 @@ export default function ChatWindow() {
   }, [messages]);
 
   // ==========================================
+  // Voice input (record -> transcribe -> send)
+  // ==========================================
+
+  async function handleVoice() {
+    if (loading) {
+      return;
+    }
+
+    // Stop recording
+    if (isListening) {
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    try {
+      const stream =
+        await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+
+      const mimeType =
+        MediaRecorder.isTypeSupported(
+          "audio/webm"
+        )
+          ? "audio/webm"
+          : "";
+
+      const recorder = mimeType
+        ? new MediaRecorder(stream, {
+            mimeType,
+          })
+        : new MediaRecorder(stream);
+
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (
+        event
+      ) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(
+            event.data
+          );
+        }
+      };
+
+      recorder.onstop = async () => {
+        stream
+          .getTracks()
+          .forEach((track) =>
+            track.stop()
+          );
+
+        setIsListening(false);
+
+        const audioBlob = new Blob(
+          audioChunksRef.current,
+          {
+            type:
+              recorder.mimeType ||
+              "audio/webm",
+          }
+        );
+
+        if (audioBlob.size === 0) {
+          return;
+        }
+
+        try {
+          const text =
+            await transcribeAudio(
+              audioBlob
+            );
+
+          if (text.trim()) {
+            // handleSend already takes the override text,
+            // no need to also stuff it into `input` first.
+            await handleSend(text.trim());
+          }
+        } catch (error) {
+          console.error(
+            "Voice transcription error:",
+            error
+          );
+        } finally {
+          inputRef.current?.focus();
+        }
+      };
+
+      recorder.onerror = (event) => {
+        console.error(
+          "MediaRecorder error:",
+          event
+        );
+
+        stream
+          .getTracks()
+          .forEach((track) =>
+            track.stop()
+          );
+
+        setIsListening(false);
+      };
+
+      mediaRecorderRef.current =
+        recorder;
+
+      setIsListening(true);
+
+      recorder.start();
+    } catch (error) {
+      console.error(
+        "Microphone error:",
+        error
+      );
+
+      setIsListening(false);
+
+      alert(
+        "Mic tidak bisa diakses. Pastikan browser sudah diberi izin microphone."
+      );
+    }
+  }
+
+  // ==========================================
   // Send message
   // ==========================================
 
-  async function handleSend() {
-    const trimmed =
-      input.trim();
+  async function handleSend(
+    messageOverride?: string
+  ) {
+    const trimmed = (
+      messageOverride ?? input
+    ).trim();
 
     if (!trimmed || loading) {
       return;
@@ -116,33 +259,31 @@ export default function ChatWindow() {
     setLoading(true);
 
     try {
+      let assistantResponse = "";
+
       const newConversationId =
         await sendMessage({
           message: trimmed,
           conversationId,
 
           onChunk: (chunk) => {
+            assistantResponse += chunk;
+
             setMessages((current) => {
-              const updated = [
-                ...current,
-              ];
+              const updated = [...current];
 
               const last =
-                updated[
-                  updated.length - 1
-                ];
+                updated[updated.length - 1];
 
               if (
-                last?.role ===
-                "assistant"
+                last?.role === "assistant"
               ) {
                 updated[
                   updated.length - 1
                 ] = {
                   ...last,
                   content:
-                    last.content +
-                    chunk,
+                    last.content + chunk,
                 };
               }
 
@@ -150,6 +291,21 @@ export default function ChatWindow() {
             });
           },
         });
+
+      // ==========================================
+      // Voice output
+      // ==========================================
+
+      if (
+        voiceEnabled &&
+        assistantResponse.trim()
+      ) {
+        speak(assistantResponse);
+      }
+
+      // ==========================================
+      // Update conversation
+      // ==========================================
 
       if (newConversationId) {
         setConversationId(
@@ -162,21 +318,19 @@ export default function ChatWindow() {
         setConversations(updated);
       }
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Failed to send message:",
+        error
+      );
 
       setMessages((current) => {
-        const updated = [
-          ...current,
-        ];
+        const updated = [...current];
 
         const last =
-          updated[
-            updated.length - 1
-          ];
+          updated[updated.length - 1];
 
         if (
-          last?.role ===
-          "assistant"
+          last?.role === "assistant"
         ) {
           updated[
             updated.length - 1
@@ -203,7 +357,12 @@ export default function ChatWindow() {
   async function handleSelectConversation(
     id: string
   ) {
-    if (loading) return;
+    if (loading) {
+      return;
+    }
+
+    // Stop any current speech
+    stopSpeaking();
 
     try {
       const data =
@@ -215,15 +374,20 @@ export default function ChatWindow() {
         data.messages.map(
           (message: Message) => ({
             role: message.role,
-            content:
-              message.content,
+            content: message.content,
           })
         )
       );
 
+      // Close mobile sidebar
+      setSidebarOpen(false);
+
       inputRef.current?.focus();
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Failed to load conversation:",
+        error
+      );
     }
   }
 
@@ -232,69 +396,112 @@ export default function ChatWindow() {
   // ==========================================
 
   function handleNewChat() {
-    if (loading) return;
+    if (loading) {
+      return;
+    }
+
+    // Stop current speech
+    stopSpeaking();
 
     setConversationId(null);
+
     setMessages([]);
+
     setInput("");
+
+    // Close mobile sidebar
+    setSidebarOpen(false);
 
     inputRef.current?.focus();
   }
 
+  // ==========================================
+  // Toggle voice output
+  // ==========================================
+
+  function handleToggleVoice() {
+    if (voiceEnabled) {
+      stopSpeaking();
+    }
+
+    setVoiceEnabled(
+      (current) => !current
+    );
+  }
+
+  // ==========================================
+  // Empty state
+  // ==========================================
+
   const isEmpty =
     messages.length === 0;
 
-  const isThinking =
-    loading &&
-    messages.length > 0 &&
-    messages[
-      messages.length - 1
-    ]?.role === "assistant" &&
-    messages[
-      messages.length - 1
-    ]?.content === "";
+  // ==========================================
+  // Render
+  // ==========================================
 
   return (
     <div className="flex h-dvh overflow-hidden bg-[#181818] text-white">
+
+      {/* ====================================== */}
       {/* Sidebar */}
+      {/* ====================================== */}
 
       <ConversationSidebar
-  conversations={conversations}
-  activeConversationId={conversationId}
-  onSelectConversation={handleSelectConversation}
-  onNewChat={handleNewChat}
-  open={sidebarOpen}
-  onClose={() => setSidebarOpen(false)}
-/>
+        conversations={conversations}
+        activeConversationId={
+          conversationId
+        }
+        onSelectConversation={
+          handleSelectConversation
+        }
+        onNewChat={
+          handleNewChat
+        }
+        open={sidebarOpen}
+        onClose={() =>
+          setSidebarOpen(false)
+        }
+      />
 
+      {/* ====================================== */}
       {/* Main */}
+      {/* ====================================== */}
 
       <main className="relative flex min-w-0 flex-1 flex-col bg-[#181818]">
+
+        {/* ==================================== */}
         {/* Top bar */}
+        {/* ==================================== */}
 
         <header className="flex h-14 shrink-0 items-center border-b border-neutral-800 px-4 md:px-6">
-  {/* Burger */}
-  <button
-    onClick={() =>
-      setSidebarOpen(true)
-    }
-    aria-label="Open sidebar"
-    className="mr-3 flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-800 hover:text-white md:hidden"
-  >
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-    >
-      <path d="M4 6h16" />
-      <path d="M4 12h16" />
-      <path d="M4 18h16" />
-    </svg>
-  </button>
+
+          {/* Mobile burger */}
+
+          <button
+            onClick={() =>
+              setSidebarOpen(true)
+            }
+            aria-label="Open sidebar"
+            className="mr-3 flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-800 hover:text-white md:hidden"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M4 6h16" />
+              <path d="M4 12h16" />
+              <path d="M4 18h16" />
+            </svg>
+          </button>
+
+          {/* Assistant status */}
+
           <div className="flex items-center gap-2">
             <div className="h-2 w-2 rounded-full bg-emerald-400" />
 
@@ -306,16 +513,89 @@ export default function ChatWindow() {
           <span className="ml-2 text-xs text-neutral-600">
             Local
           </span>
+
+          {/* Voice toggle */}
+
+          <button
+            onClick={
+              handleToggleVoice
+            }
+            aria-label={
+              voiceEnabled
+                ? "Disable voice"
+                : "Enable voice"
+            }
+            title={
+              voiceEnabled
+                ? "Disable voice"
+                : "Enable voice"
+            }
+            className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg text-neutral-400 transition hover:bg-neutral-800 hover:text-white"
+          >
+            {voiceEnabled ? (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              </svg>
+            ) : (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+
+                <line
+                  x1="23"
+                  y1="9"
+                  x2="17"
+                  y2="15"
+                />
+
+                <line
+                  x1="17"
+                  y1="9"
+                  x2="23"
+                  y2="15"
+                />
+              </svg>
+            )}
+          </button>
         </header>
 
-        
-
+        {/* ==================================== */}
         {/* Chat area */}
+        {/* ==================================== */}
 
         <div className="flex-1 overflow-y-auto">
+
           {isEmpty ? (
+
+            /* ================================= */
+            /* Empty state */
+            /* ================================= */
+
             <div className="flex h-full items-center justify-center px-6">
+
               <div className="w-full max-w-xl text-center">
+
                 <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-xl font-bold text-black shadow-lg">
                   T
                 </div>
@@ -325,19 +605,29 @@ export default function ChatWindow() {
                 </h1>
 
                 <p className="mt-2 text-sm text-neutral-500">
-                  Talk to Ellen about
-                  anything.
+                  Talk to Ellen about anything.
                 </p>
+
               </div>
+
             </div>
+
           ) : (
+
+            /* ================================= */
+            /* Messages */
+            /* ================================= */
+
             <div className="mx-auto w-full max-w-3xl px-5 py-8">
+
               <div className="space-y-7">
+
                 {messages.map(
                   (
                     message,
                     index
                   ) => {
+
                     const isUser =
                       message.role ===
                       "user";
@@ -345,6 +635,10 @@ export default function ChatWindow() {
                     const emptyAssistant =
                       !isUser &&
                       message.content === "";
+
+                    /* ========================= */
+                    /* Thinking */
+                    /* ========================= */
 
                     if (
                       emptyAssistant
@@ -355,12 +649,17 @@ export default function ChatWindow() {
                           className="flex items-center gap-2 px-1 text-sm text-neutral-600"
                         >
                           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-neutral-500" />
+
                           <span>
                             Thinking...
                           </span>
                         </div>
                       );
                     }
+
+                    /* ========================= */
+                    /* Message */
+                    /* ========================= */
 
                     return (
                       <div
@@ -371,6 +670,7 @@ export default function ChatWindow() {
                             : "justify-start"
                         }`}
                       >
+
                         <div
                           className={
                             isUser
@@ -380,6 +680,7 @@ export default function ChatWindow() {
                         >
                           {message.content}
                         </div>
+
                       </div>
                     );
                   }
@@ -390,16 +691,26 @@ export default function ChatWindow() {
                     messagesEndRef
                   }
                 />
+
               </div>
+
             </div>
           )}
+
         </div>
 
+        {/* ==================================== */}
         {/* Composer */}
+        {/* ==================================== */}
 
         <div className="shrink-0 bg-[#181818] px-5 pb-5 pt-3">
+
           <div className="mx-auto w-full max-w-3xl">
+
             <div className="flex items-end gap-2 rounded-2xl border border-neutral-700 bg-[#202020] p-1.5 transition focus-within:border-neutral-500">
+
+              {/* Input */}
+
               <input
                 ref={inputRef}
                 value={input}
@@ -409,6 +720,7 @@ export default function ChatWindow() {
                   )
                 }
                 onKeyDown={(e) => {
+
                   if (
                     e.key ===
                       "Enter" &&
@@ -418,15 +730,70 @@ export default function ChatWindow() {
 
                     handleSend();
                   }
+
                 }}
                 disabled={loading}
                 placeholder="Talk to Ellen..."
                 className="h-11 min-w-0 flex-1 bg-transparent px-3 text-sm text-white outline-none placeholder:text-neutral-600 disabled:opacity-50"
               />
 
+              {/* ================================= */}
+              {/* Voice input */}
+              {/* ================================= */}
+
               <button
-                onClick={
-                  handleSend
+                type="button"
+                onClick={handleVoice}
+                disabled
+                aria-label={
+                  isListening
+                    ? "Stop recording"
+                    : "Start voice input"
+                }
+                title={
+                  isListening
+                    ? "Stop recording"
+                    : "Start voice input"
+                }
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition active:scale-95 ${
+                  isListening
+                    ? "bg-red-500 text-white"
+                    : "text-neutral-400 hover:bg-neutral-700 hover:text-white"
+                }`}
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect
+                    x="9"
+                    y="2"
+                    width="6"
+                    height="12"
+                    rx="3"
+                  />
+
+                  <path d="M5 10a7 7 0 0 0 14 0" />
+
+                  <path d="M12 19v3" />
+
+                  <path d="M8 22h8" />
+                </svg>
+              </button>
+
+              {/* ================================= */}
+              {/* Send */}
+              {/* ================================= */}
+
+              <button
+                onClick={() =>
+                  handleSend()
                 }
                 disabled={
                   loading ||
@@ -437,15 +804,18 @@ export default function ChatWindow() {
               >
                 ↑
               </button>
+
             </div>
 
             <p className="mt-2 text-center text-[11px] text-neutral-700">
-              Talkative can make
-              mistakes. Check important
-              information.
+              Ellen can make mistakes.
+              Check important information.
             </p>
+
           </div>
+
         </div>
+
       </main>
     </div>
   );
