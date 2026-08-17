@@ -52,8 +52,10 @@ export default function ChatWindow() {
   const [voiceEnabled, setVoiceEnabled] =
     useState(false);
 
-  const [isListening, setIsListening] =
-    useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+
+
+    const [isTranscribing, setIsTranscribing] = useState(false);
 
   const mediaRecorderRef =
     useRef<MediaRecorder | null>(null);
@@ -107,125 +109,223 @@ export default function ChatWindow() {
   // ==========================================
 
   async function handleVoice() {
-    if (loading) {
-      return;
+  if (loading || isTranscribing) {
+    return;
+  }
+
+  // ==========================================
+  // Stop recording
+  // ==========================================
+
+  if (isRecording) {
+    mediaRecorderRef.current?.stop();
+
+    return;
+  }
+
+  // ==========================================
+  // Check browser support
+  // ==========================================
+
+  if (
+    typeof window === "undefined" ||
+    !navigator.mediaDevices ||
+    !navigator.mediaDevices.getUserMedia
+  ) {
+    alert("Browser lu nggak mendukung microphone.");
+    return;
+  }
+
+  if (!window.MediaRecorder) {
+    alert("Browser lu nggak mendukung audio recording.");
+    return;
+  }
+
+  try {
+    // ==========================================
+    // Request microphone
+    // ==========================================
+
+    const stream =
+      await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+
+    // ==========================================
+    // Determine supported MIME type
+    // ==========================================
+
+    let mimeType = "";
+
+    if (
+      MediaRecorder.isTypeSupported(
+        "audio/webm;codecs=opus"
+      )
+    ) {
+      mimeType = "audio/webm;codecs=opus";
+    } else if (
+      MediaRecorder.isTypeSupported("audio/webm")
+    ) {
+      mimeType = "audio/webm";
+    } else if (
+      MediaRecorder.isTypeSupported("audio/mp4")
+    ) {
+      mimeType = "audio/mp4";
     }
 
-    // Stop recording
-    if (isListening) {
-      mediaRecorderRef.current?.stop();
-      return;
-    }
+    // ==========================================
+    // Create recorder
+    // ==========================================
 
-    try {
-      const stream =
-        await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        });
+    const recorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream);
 
-      const mimeType =
-        MediaRecorder.isTypeSupported(
-          "audio/webm"
-        )
-          ? "audio/webm"
-          : "";
+    mediaRecorderRef.current = recorder;
 
-      const recorder = mimeType
-        ? new MediaRecorder(stream, {
-            mimeType,
-          })
-        : new MediaRecorder(stream);
+    audioChunksRef.current = [];
 
-      audioChunksRef.current = [];
+    // ==========================================
+    // Collect audio
+    // ==========================================
 
-      recorder.ondataavailable = (
-        event
-      ) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(
-            event.data
-          );
-        }
-      };
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunksRef.current.push(event.data);
+      }
+    };
 
-      recorder.onstop = async () => {
-        stream
-          .getTracks()
-          .forEach((track) =>
-            track.stop()
-          );
+    // ==========================================
+    // Recording finished
+    // ==========================================
 
-        setIsListening(false);
+    recorder.onstop = async () => {
+      setIsRecording(false);
+      setIsTranscribing(true);
+
+      try {
+        const actualMimeType =
+          recorder.mimeType || mimeType || "audio/webm";
 
         const audioBlob = new Blob(
           audioChunksRef.current,
           {
-            type:
-              recorder.mimeType ||
-              "audio/webm",
+            type: actualMimeType,
           }
         );
 
+        // Stop microphone
+        stream.getTracks().forEach((track) => {
+          track.stop();
+        });
+
         if (audioBlob.size === 0) {
+          console.warn("Recorded audio is empty.");
           return;
         }
 
-        try {
-          const text =
-            await transcribeAudio(
-              audioBlob
-            );
-
-          if (text.trim()) {
-            // handleSend already takes the override text,
-            // no need to also stuff it into `input` first.
-            await handleSend(text.trim());
+        console.log(
+          "Sending audio to Whisper:",
+          {
+            size: audioBlob.size,
+            type: audioBlob.type,
           }
-        } catch (error) {
-          console.error(
-            "Voice transcription error:",
-            error
-          );
-        } finally {
-          inputRef.current?.focus();
-        }
-      };
-
-      recorder.onerror = (event) => {
-        console.error(
-          "MediaRecorder error:",
-          event
         );
 
-        stream
-          .getTracks()
-          .forEach((track) =>
-            track.stop()
-          );
+        // ==========================================
+        // Send audio to Whisper
+        // ==========================================
 
-        setIsListening(false);
-      };
+        const transcript =
+          await transcribeAudio(audioBlob);
 
-      mediaRecorderRef.current =
-        recorder;
+        console.log(
+          "Whisper transcript:",
+          transcript
+        );
 
-      setIsListening(true);
+        if (!transcript.trim()) {
+          alert("Whisper tidak menangkap suara lu.");
+          return;
+        }
 
-      recorder.start();
-    } catch (error) {
+        // ==========================================
+        // Put transcript into input
+        // ==========================================
+
+        setInput(transcript.trim());
+
+        inputRef.current?.focus();
+
+      } catch (error) {
+        console.error(
+          "Voice transcription error:",
+          error
+        );
+
+        alert(
+          "Gagal mengubah suara jadi teks."
+        );
+      } finally {
+        mediaRecorderRef.current = null;
+        audioChunksRef.current = [];
+
+        setIsTranscribing(false);
+      }
+    };
+
+    // ==========================================
+    // Recorder error
+    // ==========================================
+
+    recorder.onerror = (event) => {
       console.error(
-        "Microphone error:",
-        error
+        "MediaRecorder error:",
+        event
       );
 
-      setIsListening(false);
+      setIsRecording(false);
 
+      stream.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+    };
+
+    // ==========================================
+    // Start recording
+    // ==========================================
+
+    recorder.start();
+
+    setIsRecording(true);
+
+    console.log("Recording started");
+
+  } catch (error) {
+    console.error(
+      "Microphone error:",
+      error
+    );
+
+    setIsRecording(false);
+
+    if (
+      error instanceof DOMException &&
+      error.name === "NotAllowedError"
+    ) {
       alert(
-        "Mic tidak bisa diakses. Pastikan browser sudah diberi izin microphone."
+        "Microphone ditolak. Izinkan akses microphone di browser."
+      );
+    } else {
+      alert(
+        "Gagal mengakses microphone."
       );
     }
   }
-
+}
   // ==========================================
   // Send message
   // ==========================================
@@ -742,50 +842,59 @@ export default function ChatWindow() {
               {/* ================================= */}
 
               <button
-                type="button"
-                onClick={handleVoice}
-                disabled
-                aria-label={
-                  isListening
-                    ? "Stop recording"
-                    : "Start voice input"
-                }
-                title={
-                  isListening
-                    ? "Stop recording"
-                    : "Start voice input"
-                }
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition active:scale-95 ${
-                  isListening
-                    ? "bg-red-500 text-white"
-                    : "text-neutral-400 hover:bg-neutral-700 hover:text-white"
-                }`}
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect
-                    x="9"
-                    y="2"
-                    width="6"
-                    height="12"
-                    rx="3"
-                  />
+  onClick={handleVoice}
+  disabled={loading || isTranscribing}
+  aria-label={
+    isTranscribing
+      ? "Transcribing"
+      : isRecording
+        ? "Stop recording"
+        : "Voice input"
+  }
+  title={
+    isTranscribing
+      ? "Converting speech to text..."
+      : isRecording
+        ? "Stop recording"
+        : "Voice input"
+  }
+  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition active:scale-95 ${
+    isRecording
+      ? "bg-red-500 text-white"
+      : isTranscribing
+        ? "bg-neutral-700 text-neutral-500"
+        : "text-neutral-400 hover:bg-neutral-700 hover:text-white"
+  }`}
+>
+  {isTranscribing ? (
+    <div className="h-5 w-5 animate-spin rounded-full border-2 border-neutral-500 border-t-white" />
+  ) : (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect
+        x="9"
+        y="2"
+        width="6"
+        height="12"
+        rx="3"
+      />
 
-                  <path d="M5 10a7 7 0 0 0 14 0" />
+      <path d="M5 10a7 7 0 0 0 14 0" />
 
-                  <path d="M12 19v3" />
+      <path d="M12 19v3" />
 
-                  <path d="M8 22h8" />
-                </svg>
-              </button>
+      <path d="M8 22h8" />
+    </svg>
+  )}
+</button>
 
               {/* ================================= */}
               {/* Send */}

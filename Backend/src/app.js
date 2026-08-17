@@ -4,6 +4,7 @@ const cors = require("cors");
 const chatRoutes = require("./routes/chat.routes");
 const conversationRoutes = require("./routes/conversation.routes");
 const memoryRoutes =  require("./routes/memory.routes");
+const voiceRoutes = require("./routes/voice.routes");
 
 const app = express();
 
@@ -18,6 +19,8 @@ app.use(
 );
 
 app.use(express.json());
+
+app.use("/api/voice", voiceRoutes);
 
 app.get("/api/health", (req, res) => {
     res.json({
