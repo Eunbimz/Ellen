@@ -4,19 +4,21 @@ Ellen is a local AI companion application designed for natural, conversational i
 
 The project was developed as an exploration of building a more personalized AI assistant rather than a simple chatbot.
 
-## 1. Features
+------------------------------------------------------------------------
 
-- 💬 **Conversational Chat** — Chat naturally with Ellen.
-- 🗂️ **Conversation History** — Conversations are stored and can be accessed later.
-- 🧠 **Long-Term Memory** — Ellen can remember relevant information about the user.
-- 🗑️ **Memory Management** — Users can view and forget stored memories.
-- 🎭 **AI Personality** — Configurable personality and conversational style.
-- 🔊 **Voice Output** — Converts AI responses into speech.
-- 🎙️ **Voice Input** — Records audio and converts it into text using Whisper.
-- 🧩 **Context Awareness** — Combines recent conversation history, relevant memories, and conversational state.
-- 🐳 **Docker Support** — The application can be developed and run using Docker Compose.
+## Features
 
-## 2. Model Used During Development
+- 💬 **Conversational Chat**  Chat naturally with Ellen.
+- 🗂️ **Conversation History**  Conversations are stored and can be accessed later.
+- 🧠 **Long-Term Memory**  Ellen can remember relevant information about the user.
+- 🗑️ **Memory Management**  Users can view and forget stored memories.
+- 🎭 **AI Personality**  Configurable personality and conversational style.
+- 🔊 **Voice Output**  Converts AI responses into speech.
+- 🎙️ **Voice Input**  Records audio and converts it into text using Whisper.
+- 🧩 **Context Awareness**  Combines recent conversation history, relevant memories, and conversational state.
+- 🐳 **Docker Support**  The application can be developed and run using Docker Compose.
+
+## Model Used During Development
 
 The primary language model used during development is [**Qwen 3.5:0.8b**](https://ollama.com/library/qwen3.5:0.8b), running locally through **Ollama**.
 
@@ -26,7 +28,7 @@ The models are run locally, so normal conversations do not require an external L
 
 The model can be changed through the project's configuration/environment variables.
 
-## 3. Limitations
+## Limitations
 
 - The quality of responses is limited by the locally running language model.
 - Smaller local models may produce less accurate or less detailed responses than larger models.
@@ -36,7 +38,9 @@ The model can be changed through the project's configuration/environment variabl
 - The project is primarily intended for local development and personal use.
 - Running local AI models requires sufficient system resources, especially RAM and GPU VRAM.
 
-## 4. Tech Stack
+------------------------------------------------------------------------
+
+## Tech Stack
 
 - Next.js
 - React
@@ -52,7 +56,9 @@ The model can be changed through the project's configuration/environment variabl
 - Vector-based memory retrieval
 - Docker & Docker Compose
 
-## 5. Project Structure
+------------------------------------------------------------------------
+
+## Project Structure
 
 ```text
 Project Ellen/
@@ -152,7 +158,9 @@ Project Ellen/
 
 The frontend handles the user interface and interaction, while the backend manages conversations, memory, context processing, AI generation, voice processing, and API requests.
 
-## 6. Running the Project via Docker
+------------------------------------------------------------------------
+
+## Running the Project via Docker
 
 ### Requirements
 
@@ -164,11 +172,43 @@ Make sure the following are installed:
 Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Eunbimz/Ellen.git
 cd "Project Ellen"
 ```
 
-Create the required environment files based on the project's configuration.
+Then:
+```bash
+cd Backend
+```
+
+Create the required environment files based on the project's configuration. Or:
+
+```bash
+cp .env.example .env
+```
+For linux.
+
+```bash
+Copy-Item .env.example .env
+```
+For Windows
+
+Then:
+```bash
+cd frontend
+```
+
+Create the required environment files based on the project's configuration. Or:
+
+```bash
+cp .env.local.example .env.local
+```
+For linux.
+
+```bash
+Copy-Item .env.local.example .env.local
+```
+For Windows
 
 Then run:
 
@@ -198,7 +238,7 @@ docker compose up
 
 > Make sure the environment variables and ports match your `docker-compose.yml` configuration.
 
-## 7. Running the Project Manually
+## Running the Project Manually
 
 ### Backend
 
@@ -258,7 +298,9 @@ Open:
 http://localhost:3000
 ```
 
-## 8. Usage and System Flow
+------------------------------------------------------------------------
+
+## Usage and System Flow
 
 The basic interaction flow is:
 
@@ -275,54 +317,87 @@ The basic interaction flow is:
 11. If voice output is enabled, the response can be converted into speech.
 12. For voice input, recorded audio is sent to Whisper and converted into text before being sent as a normal chat message.
 
-### Simplified Flow
+### Flow System
 
-```text
-User
- │
- ▼
-Next.js Frontend
- │
- │ HTTP Request
- ▼
-Express Backend
- │
- ├── Conversation History
- ├── Memory Retrieval
- ├── Message Analysis
- ├── Conversational State
- │
- ▼
-Context Builder
- │
- ▼
-Ollama + Qwen
- │
- ▼
-AI Response
- │
- ├── Save to PostgreSQL
- └── Stream to Frontend
+
+``` text
+                    User
+                      │
+                      ▼
+              ┌──────────────┐
+              │   Next.js    │
+              │   Frontend   │
+              └──────┬───────┘
+                     │
+                     │ HTTP Request
+                     ▼
+              ┌──────────────┐
+              │   Express    │
+              │   Backend    │
+              └──────┬───────┘
+                     │
+                     ├── Conversation History
+                     ├── Memory Retrieval
+                     ├── Message Analysis
+                     ├── Conversational State
+                     │
+                     ▼
+              ┌──────────────┐
+              │    Context   │
+              │    Builder   │
+              └──────┬───────┘
+                     │
+                     ▼
+              ┌──────────────┐
+              │    Ollama    │
+              │     Qwen     │
+              └──────┬───────┘
+                     │
+                     ▼
+              ┌──────────────┐
+              │      AI      │
+              │   Response   │
+              └──────┬───────┘
+                     │
+                     ▼
+              Save to PostgreSQL
+                     │
+                     ▼
+              Stream to Frontend
 ```
+
 
 For voice input:
-
-```text
-Microphone
-    │
-    ▼
-Frontend Recording
-    │
-    ▼
-Whisper
-    │
-    ▼
-Transcribed Text
-    │
-    ▼
-Normal Chat Flow
+``` text
+                Microphone
+                     │
+                     ▼
+              ┌──────────────┐
+              │   Frontend   │
+              │   Recording  │
+              └──────┬───────┘
+                     │
+                     ▼
+              ┌──────────────┐
+              │    Whisper   │
+              │              │
+              └──────┬───────┘
+                     │
+                     ▼
+              ┌──────────────┐
+              │ Transcribed  │
+              │    Text      │
+              └──────┬───────┘
+                     │
+                     ▼
+              Normal Chat Flow
+                     │
+                     ▼
+              Stream to Frontend
 ```
 
-## 9. License
+------------------------------------------------------------------------
+
+## License
 
 This project is developed for educational and development purposes.
